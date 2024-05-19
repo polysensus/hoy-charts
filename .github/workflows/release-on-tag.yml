@@ -1,4 +1,6 @@
 name: Release Charts
+permissions:
+  contents: write
 
 on:
   push:
@@ -28,7 +30,6 @@ jobs:
 
       - name: Package helm
         run: |
-          # VERSION=${{ github.event.release.tag_name }}
           VERSION=${{ github.ref_name }}
           rm -rf .cr-release-packages
           mkdir -p .cr-release-packages
