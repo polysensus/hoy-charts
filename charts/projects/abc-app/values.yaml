@@ -1,0 +1,9 @@
+global:
+  project:
+    name: abc
+  subsystem:
+    name: abc
+    instance: dev
+  subsystem_dev:
+    name: dev-abcy
+

@@ -1,0 +1,11 @@
+{{- define "lib-hoy.configmap.tpl" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name | printf "%s-%s" .Chart.Name }}
+data: {}
+{{- end -}}
+
+{{- define "lib-hoy.configmap" -}}
+{{- include "lib-hoy.util.merge" (append . "lib-hoy.configmap.tpl") -}}
+{{- end -}}

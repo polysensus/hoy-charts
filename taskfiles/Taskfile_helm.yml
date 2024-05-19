@@ -1,0 +1,175 @@
+---
+version: '3'
+vars:
+  # Note: vars used for 'dir' directives in task entries need to be relative, as
+  # task catenates the dir in this file to the dir set by the task caller
+  HELM_DIR: '../charts'
+
+  # git ops values files root. local overrides are possible for all of these
+  PROJECT_VALUES_DIR: 'projects'
+  SUBSYSTEM_VALUES_DIR: 'subsystems'
+  PLATFORM_VALUES_DIR: '../values/platforms'
+  ENV: '{{.ENV | default "dev"}}'
+
+
+  PLATFORM: '{{.PLATFORM | default "hoy"}}'
+
+  # typically this is set to the currently active project.
+  PROJECT: '{{.PROJECT | default "chaintrap"}}'
+  PROJECT_INSTANCE: '{{.PROJECT_INSTANCE | default "dev"}}'
+
+tasks:
+  help:
+    desc: |
+      vars help
+    cmds:
+      - |
+        echo "
+        HELM_DIR: {{.HELM_DIR}}
+
+        SUBSYSTEM_VALUES_DIR: {{.SUBSYSTEM_VALUES_DIR}}
+        PROJECT_VALUES_DIR: {{.PROJECT_VALUES_DIR}}
+        PLATFORM_VALUES_DIR: {{.PLATFORM_VALUES_DIR}}
+
+        ENV: {{.ENV}} [dev, stage, prod]
+        the supported environment for all infrastructure and projects. each env
+        notionally has a shared instance named after itself. dev in env dev is a
+        thing. It is possible to deploy the 'dev' instance to the 'stage'
+        environment and visa versa.
+
+        PLATFORM and PROJECT are orthogonal
+        PROJECTs have SUBSYSTEM's
+        Both PROJECT's and SUBSYSTEMS's have instances
+        Instances are either owned by a specific developer or by an environment
+
+        PLATFORM: {{.PLATFORM}}
+        all projects are associated with a single platform. plaform determins
+        things like cluster cofiguration. platforms don't have instances, the *are* the instance
+
+        PROJECT: {{.PROJECT}}
+        SUBSYSTEM: {{.SUBSYSTEM}}
+
+        Instances are used for individual developers, shared deployments and
+        named production, staging and test deployments.
+
+        Instance values provide a way for the library chart templates to
+        reference values that are provided by the library chart consumer *per
+        instance* and which can only be instance specific. For example, we can't
+        have a project wide or subsystem wide choice of storage account without
+        forcing the same choice on all deployments. 
+
+        PROJECT_INSTANCE {{.PROJECT_INSTANCE}}
+        projects have: a plaform wide name and an environment. there may be many
+          deployed instances. instances determine cluster name spaces. an
+          instance may be deployed in any environment
+
+        SUBSYSTEM_INSTANCE: {{.SUBSYSTEM_INSTANCE}}
+        subsystems are independently deployable units of functionality. they
+        are a bit like a project, but are more likely to be platformy than
+        producty. a subsystem may exist independently of a project or be
+        specific to one project. If it is specific, it should be named
+        <project>-<subsystem> if just the instance is project specific, the
+        instance name should be <project-instance>-<subsystem>
+        "
+  values-files:
+    desc: resolve the -f files values arguments needed to render or install the templates
+    dir:  '{{.HELM_DIR}}'
+    cmds:
+      - |
+
+        # last entry has the most precedence, the -f for the file test being
+        # the same as the files argument for helm is just a slightly confusing
+        # co-incidence.
+
+        FILES=""
+
+        # git ops values ------------------------
+        # platform 
+        [[ -f {{.PLATFORM_VALUES_DIR}}/{{.PLATFORM}}/terraform.yaml ]] \
+        && FILES="$FILES -f {{.PLATFORM_VALUES_DIR}}/{{.PLATFORM}}/terraform.yaml"
+        [[ -f {{.PLATFORM_VALUES_DIR}}/{{.PLATFORM}}/values.yaml ]] \
+        && FILES="$FILES -f {{.PLATFORM_VALUES_DIR}}/{{.PLATFORM}}/values.yaml"
+        [[ -f {{.PLATFORM_VALUES_DIR}}/{{.PLATFORM}}/{{.ENV}}/terraform.yaml ]] \
+        && FILES="$FILES -f {{.PLATFORM_VALUES_DIR}}/{{.PLATFORM}}/{{.ENV}}/terraform.yaml"
+        [[ -f {{.PLATFORM_VALUES_DIR}}/{{.PLATFORM}}/{{.ENV}}/values.yaml ]] \
+        && FILES="$FILES -f {{.PLATFORM_VALUES_DIR}}/{{.PLATFORM}}/{{.ENV}}/values.yaml"
+
+        # project
+        [[ -f {{.PROJECT_VALUES_DIR}}/{{.PROJECT}}/terraform.yaml ]] \
+        && FILES="$FILES -f {{.PROJECT_VALUES_DIR}}/{{.PROJECT}}/terraform.yaml"
+        [[ -f {{.PROJECT_VALUES_DIR}}/{{.PROJECT}}/values.yaml ]] \
+        && FILES="$FILES -f {{.PROJECT_VALUES_DIR}}/{{.PROJECT}}/values.yaml"
+        [[ -f {{.PROJECT_VALUES_DIR}}/{{.PROJECT}}/{{.ENV}}/terraform.yaml ]] \
+        && FILES="$FILES -f {{.PROJECT_VALUES_DIR}}/{{.PROJECT}}/{{.ENV}}/terraform.yaml"
+        [[ -f {{.PROJECT_VALUES_DIR}}/{{.PROJECT}}/{{.ENV}}/values.yaml ]] \
+        && FILES="$FILES -f {{.PROJECT_VALUES_DIR}}/{{.PROJECT}}/{{.ENV}}/values.yaml"
+
+        [[ -f {{.SUBSYSTEM_VALUES_DIR}}/{{.SUBSYSTEM}}/terraform.yaml ]] \
+        && FILES="$FILES -f {{.SUBSYSTEM_VALUES_DIR}}/{{.SUBSYSTEM}}/terraform.yaml"
+        [[ -f {{.SUBSYSTEM_VALUES_DIR}}/{{.SUBSYSTEM}}/values.yaml ]] \
+        && FILES="$FILES -f {{.SUBSYSTEM_VALUES_DIR}}/{{.SUBSYSTEM}}/values.yaml"
+        [[ -f {{.SUBSYSTEM_VALUES_DIR}}/{{.SUBSYSTEM}}/{{.ENV}}/terraform.yaml ]] \
+        && FILES="$FILES -f {{.SUBSYSTEM_VALUES_DIR}}/{{.SUBSYSTEM}}/{{.ENV}}/terraform.yaml"
+        [[ -f {{.SUBSYSTEM_VALUES_DIR}}/{{.SUBSYSTEM}}/{{.ENV}}/values.yaml ]] \
+        && FILES="$FILES -f {{.SUBSYSTEM_VALUES_DIR}}/{{.SUBSYSTEM}}/{{.ENV}}/values.yaml"
+
+        # subsystem instance
+        [[ -f {{.SUBSYSTEM_VALUES_DIR}}/instances/{{.SUBSYSTEM_INSTANCE}}-terraform.yaml ]] \
+        && FILES="$FILES -f {{.SUBSYSTEM_VALUES_DIR}}/instances/{{.SUBSYSTEM_INSTANCE}}-terraform.yaml"
+        [[ -f {{.SUBSYSTEM_VALUES_DIR}}/instances/{{.SUBSYSTEM_INSTANCE}}-values.yaml ]] \
+        && FILES="$FILES -f {{.SUBSYSTEM_VALUES_DIR}}/instances/{{.SUBSYSTEM_INSTANCE}}-values.yaml"
+
+        # local overrides -----------------------
+
+        # platform 
+        [[ -f $HOME/.local/polysensus/helm/{{.PLATFORM}}/terraform.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.PLATFORM}}/terraform.yaml"
+        [[ -f $HOME/.local/polysensus/helm/{{.PLATFORM}}/values.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.PLATFORM}}/values.yaml"
+        [[ -f $HOME/.local/polysensus/helm/{{.PLATFORM}}/{{.ENV}}/terraform.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.PLATFORM}}/{{.ENV}}/terraform.yaml"
+        [[ -f $HOME/.local/polysensus/helm/{{.PLATFORM}}/{{.ENV}}/values.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.PLATFORM}}/{{.ENV}}/values.yaml"
+
+        # project
+        [[ -f $HOME/.local/polysensus/helm/{{.PROJECT}}/terraform.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.PROJECT}}/terraform.yaml"
+        [[ -f $HOME/.local/polysensus/helm/{{.PROJECT}}/values.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.PROJECT}}/values.yaml"
+        [[ -f $HOME/.local/polysensus/helm/{{.PROJECT}}/{{.ENV}}/terraform.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.PROJECT}}/{{.ENV}}/terraform.yaml"
+        [[ -f $HOME/.local/polysensus/helm/{{.PROJECT}}/{{.ENV}}/values.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.PROJECT}}/{{.ENV}}/values.yaml"
+
+        [[ -f $HOME/.local/polysensus/helm/{{.SUBSYSTEM}}/terraform.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.SUBSYSTEM}}/terraform.yaml"
+        [[ -f $HOME/.local/polysensus/helm/{{.SUBSYSTEM}}/values.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.SUBSYSTEM}}/values.yaml"
+        [[ -f $HOME/.local/polysensus/helm/{{.SUBSYSTEM}}/{{.ENV}}/terraform.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.SUBSYSTEM}}/{{.ENV}}/terraform.yaml"
+        [[ -f $HOME/.local/polysensus/helm/{{.SUBSYSTEM}}/{{.ENV}}/values.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.SUBSYSTEM}}/{{.ENV}}/values.yaml"
+
+        # subsystem instance (which can be in the same place as project instances)
+        [[ -f $HOME/.local/polysensus/helm/{{.SUBSYSTEM}}/instances/{{.SUBSYSTEM_INSTANCE}}-terraform.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.SUBSYSTEM}}/instances/{{.PROJECT_INSTANCE}}/{{.SUBSYSTEM_INSTANCE}}-terraform.yaml"
+        [[ -f $HOME/.local/polysensus/helm/{{.SUBSYSTEM}}/instances/{{.SUBSYSTEM_INSTANCE}}-values.yaml ]] \
+        && FILES="$FILES -f $HOME/.local/polysensus/helm/{{.SUBSYSTEM}}/instances/{{.SUBSYSTEM_INSTANCE}}-values.yaml"
+
+        echo $FILES
+
+  test:abc:
+    desc: update and render the examples (essentially a simple test)
+    dir:  '{{.HELM_DIR}}'
+    vars:
+      PROJECT: abc-app
+    cmds:
+      - |
+        set -e
+
+        FILES=$(task -s -d {{.ROOT_DIR}} helm:values-files PROJECT={{.PROJECT}} PROJECT_INSTANCE={{.PROJECT_INSTANCE}})
+
+        helm dependency update projects/{{.PROJECT}} 
+        helm install {{.PROJECT}} projects/{{.PROJECT}} --debug --dry-run \
+          $FILES {{.CLI_ARGS}}
+

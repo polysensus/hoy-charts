@@ -1,0 +1,19 @@
+
+{{/* --- project instance helpers --- */}}
+{{/*
+Get project instance value
+Pass in a dict ( "scope" "SCOPE" "var" "VARNAME" ) e.g. dict ( "scope" . "var" "subsystem_instance_account_name" )
+*/}}
+{{- define "instance_var" -}}
+{{- tpl ( printf "{{ .Values.global.project_%s.%s }}" .Values.global.project.instance .var ) .scope | required ( printf "Missing project instance var var: project-%s %s" .Values.global.project.instance .var ) -}}
+{{- end -}}
+
+{{/* --- subsystem instance helpers --- */}}
+{{/*
+Get subsystem instance value
+Pass in a dict ( "scope" "SCOPE" "var" "VARNAME" ) e.g. dict ( "scope" . "var" "subsystem_instance_account_name" )
+*/}}
+{{- define "subsystem_instance_var" -}}
+{{- tpl ( printf "{{ .Values.global.subsystem_%s.%s }}" .Values.global.subsystem.instance .var ) .scope | required ( printf "Missing project instance var var: project-%s %s" .Values.global.subsystem.instance .var ) -}}
+{{- end -}}
+

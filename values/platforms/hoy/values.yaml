@@ -1,0 +1,11 @@
+global:
+  platform:
+    name: hoy
+
+    imageConfig:
+
+      repository: eu.gcr.io/hoy-dev-1
+      pullPolicy:
+        default: IfNotPresent
+      tags:
+        default: latest

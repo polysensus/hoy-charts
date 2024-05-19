@@ -1,0 +1,5 @@
+{{- include "lib-hoy.configmap" (list . "abc-app.configmap") -}}
+{{- define "abc-app.configmap" -}}
+data:
+  myvalue: "Hello World"
+{{- end -}}

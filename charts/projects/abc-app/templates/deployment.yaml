@@ -1,0 +1,5 @@
+---
+{{/* An ex1service of the bare minimum */}}
+{{- include "lib-hoy.deployment" (merge (dict "name" "ex1servicev1") .) -}}
+{{- define "abc.ex1servicev1-deployment.merge" -}} {{- end -}}
+{{- define "abc.ex1servicev1-deployment.apply" -}} {{- end -}}

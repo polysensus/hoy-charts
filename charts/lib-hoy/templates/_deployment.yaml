@@ -1,0 +1,259 @@
+{{- define "lib-hoy.deployment.tpl" -}}
+{{ $name := required "'name' must be provided" .name }}
+{{ $apply := required "'apply' must be provided" .apply}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lib-hoy.fullname" $ }}-{{ $name }}
+  labels:
+    app.polysensus.io/project-name: {{ $.Values.global.project.name }}
+    {{- if $.Values.global.project.instance }}
+    app.polysensus.io/project-instance: {{ include "instance_var" (merge ( dict "scope" $ "var" "name" ) .) }}
+    {{- end }}
+    app.polysensus.io/subsystem-name: {{ $.Values.global.subsystem.name }}
+    {{- if $.Values.global.subsystem.instance }}
+    app.polysensus.io/subsystem-instance: {{ include "subsystem_instance_var" (merge ( dict "scope" $ "var" "name" ) .) }}
+    {{- end }}
+    app.kubernetes.io/name: {{ include "lib-hoy.name" . }}-{{ $name }}
+    helm.sh/chart: {{ include "lib-hoy.chart" . }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+spec:
+  selector:
+    matchLabels:
+      app.polysensus.io/project-name: {{ $.Values.global.project.name }}
+      {{- if $.Values.global.project.instance }}
+      app.polysensus.io/project-instance: {{ include "instance_var" (merge ( dict "scope" $ "var" "name" ) .) }}
+      {{- end }}
+      app.polysensus.io/subsystem-name: {{ $.Values.global.subsystem.name }}
+      {{- if $.Values.global.subsystem.instance }}
+      app.polysensus.io/subsystem-instance: {{ include "subsystem_instance_var" (merge ( dict "scope" $ "var" "name" ) .) }}
+      {{- end }}
+      app.kubernetes.io/name: {{ include "lib-hoy.name" . }}-{{ $name }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app: {{ include "lib-hoy.fullname" . }}-{{ $name }}
+  strategy:
+    type: {{ $.Values.global.rolloutStrategy }}
+  template:
+    metadata:
+      labels:
+        app.polysensus.io/project-name: {{ $.Values.global.project.name }}
+        {{- if $.Values.global.project.instance }}
+        app.polysensus.io/project-instance: {{ include "instance_var" (merge ( dict "scope" $ "var" "name" ) .) }}
+        {{- end }}
+        app.polysensus.io/subsystem-name: {{ $.Values.global.subsystem.name }}
+        {{- if $.Values.global.subsystem.instance }}
+        app.polysensus.io/subsystem-instance: {{ include "subsystem_instance_var" (merge ( dict "scope" $ "var" "name" ) .) }}
+        {{- end }}
+        app.kubernetes.io/name: {{ include "lib-hoy.name" . }}-{{ $name }}
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+        app: {{ include "lib-hoy.fullname" . }}-{{ $name }}
+
+    spec:
+      serviceAccountName: {{ include "lib-hoy.fullname" . }}-{{ $name }}
+      containers:
+        - name: main
+          {{- if $.Values.global.skaffoldDeploy }}
+          image: {{ ( index $.Values.global.image $name ) }}
+          {{- else }}
+          image: "{{ $.Values.global.platform.imageConfig.repository }}/{{ $name }}:{{ $.Values.global.platform.imageConfig.tags.default }}"
+          {{- end }}
+          imagePullPolicy: {{ $.Values.global.platform.imageConfig.pullPolicy.polysensus }}
+          env:
+            - name: CONTAINER_NAME
+              value: main
+            - name: POD_NAME
+              valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          {{- if $apply.env }}
+          {{- range $k, $v := $apply.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+          {{- end }}
+          {{- end }}
+
+          {{- if $apply.queues }}
+            {{- range $queueName, $queue := $apply.queues }}
+            {{- /* If the queue is NOT listed in disabledQueues, include its env var */}}
+            {{- if not (has $queueName $.Values.global.features.disabledQueues) }}
+            - name: {{ upper $queueName }}_QUEUE
+              value: {{ $queueName }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+
+          {{- if $apply.topics -}}
+            {{- range $topicName, $topic := $apply.topics }}
+            - name: {{ upper $topicName }}_TOPIC
+              value: {{ $topicName }}
+            {{- if $topic }}
+            {{- if $topic.subscription }}
+            - name: {{ upper $topicName }}_SUBSCRIPTION
+              value: {{ $topic.subscription }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+
+          {{- if $apply.secrets -}}
+          {{- if $apply.secrets.arcnode -}}
+            {{- range $secretName := $apply.secrets.arcnode }}
+            - name: {{ upper $secretName | replace "-" "_" }}_FILE
+              value: "/secrets/{{ $secretName }}"
+            {{- end }}
+          {{- end }}
+          {{- end }}
+
+          {{- if $apply.volumes -}}
+          {{- if $apply.volumes.configMaps -}}
+            {{- range $configMapName, $_ := $apply.volumes.configMaps }}
+            {{- range $fileName, $_ := . }}
+            - name: {{ $fileName | upper | replace "-" "_" | regexFind "[^.]*" }}_FILE
+              value: "/config/{{ $configMapName }}/{{ $fileName }}"
+            {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- end }}
+
+          {{ if $apply.ports }}
+          ports:
+          {{- range $name, $v := $apply.ports }}
+            - name: {{ $name }}
+              containerPort: {{ $v.containerPort | default "8000" }}
+              protocol: {{ $v.protocol | default "TCP" }}
+              {{- if $v.targetPort -}}
+              targetPort: {{ $v.targetPort }}
+              {{- end -}}
+          {{- end }}
+          {{ else }}
+          ports: []
+          {{ end }}
+          {{- if $apply.readinessProbe.enabled }}
+          readinessProbe:
+            {{ toYaml ( omit $apply.readinessProbe "enabled" ) | nindent 12 }}
+          {{- end }}
+          {{- if $apply.livenessProbe.enabled }}
+          livenessProbe:
+            {{ toYaml ( omit $apply.livenessProbe "enabled" ) | nindent 12 }}
+          {{- end }}
+          {{- if $apply.resources }}
+          resources:
+            {{ toYaml $apply.resources | nindent 12 }}
+          {{- else }}
+          resources: {}
+          {{- end }}
+
+          volumeMounts:
+            {{- if $apply.volumes -}}
+            {{- if $apply.volumes.configMapMounts -}}
+            {{- range $configMapName, $_ := $apply.volumes.configMapMounts }}
+            - name: {{ $configMapName }}
+              mountPath: /config/{{ $configMapName }}
+            {{- end }} # range $apply.volumes.configMapMounts
+            {{- end }} # $apply.volumes.configMapMounts
+            {{- if $apply.volumes.configMaps -}}
+            {{- range $configMapName, $_ := $apply.volumes.configMaps }}
+            - name: {{ $configMapName }}
+              mountPath: /config/{{ $configMapName }}
+            {{- end }} # range $apply.volumes.configMaps
+            {{- end }} # $apply.volumes.configMaps
+            {{- end }} # $apply.volumes
+
+            {{- if $apply.secrets }}
+            {{- if len $apply.secrets }}
+            # Note: the local tessera public key (as selected for subjects) is
+            # automatically included if useForeignTenantStorageTopics is true
+            - name: secrets
+              mountPath: /secrets
+              readOnly: true
+            {{- end }} # len $apply.secrets
+            {{- end }} # $apply.secrets
+
+      volumes:
+        {{- if $apply.volumes }}
+        {{- if $apply.volumes.configMapMounts }}
+        {{- range $configMapName, $_ := $apply.volumes.configMapMounts }}
+        - name: {{ $configMapName }}
+          configMap:
+            name: {{ include "lib-hoy.fullname" $ }}-{{ $configMapName }}
+        {{- end }} # range $apply.volumes.configMapMounts
+        {{- end }} # $apply.volumes.configMapMounts
+        {{- if $apply.volumes.configMaps -}}
+        {{- range $configMapName, $_ := $apply.volumes.configMaps }}
+        - name: {{ $configMapName }}
+          configMap:
+            name: {{ include "lib-hoy.fullname" $ }}-{{ $name }}-{{ $configMapName }}
+        {{- end }} # range $apply.volumes.configMaps
+        {{- end }} # $apply.volumes.configMaps
+        {{- end }} # $apply.volumes
+
+        # TODO: secrets
+
+      nodeSelector: {}
+      affinity: {}
+      tolerations: []
+
+{{- end -}}
+
+{{- define "lib-hoy.deployment" -}}
+{{ $name := required "'name' must be provided" .name }}
+{{ $subsystem := required "'name' must be set in Values.global.subsystem" $.Values.global.subsystem.name }}
+{{- include "lib-hoy.util.merge" (
+    list
+        (merge
+            (dict
+              "name" $name
+                "apply" (merge
+                  ((include (printf "%s.%s-deployment.apply" $subsystem $name)  .) | fromYaml)
+                  ((include "lib-hoy.deployment.apply-defaults" (merge (dict "name" $name) .)) | fromYaml)
+                  )
+             ) .)
+        (printf "%s.%s-deployment.merge" $subsystem $name)
+        "lib-hoy.deployment.tpl"
+    ) -}}
+
+{{- end -}}
+
+{{- define "lib-hoy.deployment.apply-defaults" -}}
+{{ $name := required "'name' must be provided" .name }}
+env:
+  # This arrangement lets us put environment values which have release wide (or just
+  # broad) significance directly in .Values.<servicename>. Whilst allowing those
+  # values which are the business of the service to be defined directly in the
+  # service deployment manifiest for better maintainer locality.
+  LOGLEVEL: "INFO"
+  PORT: "8000"
+
+ports:
+readinessProbe:
+  enabled: false               # by having an explicit enable from caller allows us to set useful defaults here
+  failureThreshold: 3
+  initialDelaySeconds: 30
+  periodSeconds: 60
+  successThreshold: 1
+  timeoutSeconds: 1            # prior to k8s 1.20 this had no effect for exec probes
+livenessProbe:
+  enabled: false
+  failureThreshold: 3
+  initialDelaySeconds: 400
+  periodSeconds: 120
+  timeoutSeconds: 5            # prior to k8s 1.20 this had no effect for exec probes
+resources:
+  # all deployments get this resources block, but can individualy override elements
+  requests:
+    memory: "32Mi"
+    cpu: "15m"
+  limits:
+    memory: "128Mi"
+{{- end -}}

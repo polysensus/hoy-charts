@@ -1,0 +1,6 @@
+dependencies:
+- name: lib-hoy
+  repository: file://../../lib-hoy
+  version: 0.1.0
+digest: sha256:8e3ed96fede804f271bb6d5b0dff81685308ddab31929fa09d90510600811c28
+generated: "2024-05-19T08:58:54.365983+01:00"
