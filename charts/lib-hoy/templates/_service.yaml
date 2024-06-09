@@ -1,0 +1,74 @@
+{{/*Service template
+
+In the same spirit as the Deployment template, same general structure
+*/}}
+
+{{- define "lib-hoy.service.tpl" -}}
+{{ $name := required "'name' must be provided" .name }}
+{{ $apply := required "'apply' must be provided" .apply}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/name: {{ include "lib-hoy.name" . }}-{{ $name }}
+    helm.sh/chart: {{ include "lib-hoy.chart" . }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+spec:
+  type: {{ $.Values.project.default.serviceType }}
+  {{ if $apply.ports }}
+  ports:
+  {{- range $name, $v := $apply.ports }}
+    - port: {{ required "'port' must be provided" $v.port }}
+      name: {{ $name }}
+      targetPort: {{ $v.targetPort | default $name }}
+      protocol: {{ $v.protocol | default "TCP" }}
+      {{- if $v.targetPort -}}
+      targetPort: {{ $v.targetPort }}
+      {{- end -}}
+  {{- end }}
+  {{ else }}
+  ports: []
+  {{ end }}
+  selector:
+    app.kubernetes.io/name: {{ include "lib-hoy.name" $ }}-{{ $name }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app: {{ $name }}
+{{- end -}}
+
+{{- define "lib-hoy.service" -}}
+{{ $name := required "'name' must be provided" .name }}
+{{ $subsystem := required "'name' must be set in Values.global" $.Values.subsystem.name }}
+{{- include "lib-hoy.util.merge" (
+    list
+        (merge 
+            (dict
+              "name" $name
+                "apply" (merge
+                  ((include (printf "%s.%s-service.apply" $subsystem $name)  .) | fromYaml)
+                  ((include "lib-hoy.service.apply-defaults" (merge (dict "name" $name) .)) | fromYaml)
+                  )
+             ) .)
+        (printf "%s.%s-service.merge" $subsystem $name)
+        "lib-hoy.service.tpl"
+    ) -}}
+{{- end -}}
+
+
+{{/* The apply defaults definition
+
+This defines the apply sections which library consumers can provide overrides for in their corresponding 'apply' definition.
+*/}}
+{{- define "lib-hoy.service.apply-defaults" -}}
+{{ $name := required "'name' must be provided" .name }}
+ports:
+  grpc-port:
+    port: {{ .Values.platform.default.grpcPort }}
+  {{- if hasKey .Values $name }}
+  http-metrics:
+    port: {{ .Values.platform.default.metricsPort }}
+  http-port:
+    port: {{ $.Values.platform.default.httpPort }}
+  {{- end }}
+{{- end -}}

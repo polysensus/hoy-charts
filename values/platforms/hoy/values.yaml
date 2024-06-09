@@ -1,11 +1,15 @@
-global:
-  platform:
-    name: hoy
+platform:
+  name: hoy
+  default:
+    domain: "hoy.polysensus.io"
+    httpPort: 80
+    grpcPort: 8082
+    metricsPort: 8083
 
-    imageConfig:
+  imageConfig:
 
-      repository: eu.gcr.io/hoy-dev-1
-      pullPolicy:
-        default: IfNotPresent
-      tags:
-        default: latest
+    repository: eu.gcr.io/hoy-dev-1
+    pullPolicy:
+      default: IfNotPresent
+    tags:
+      default: latest

@@ -1,0 +1,22 @@
+{{- define "lib-hoy.middleware-removepath.tpl" -}}
+{{ $name := required "'name' must be provided" .name }}
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ $name }}-removepath
+spec:
+  serviceAccountName: {{ include "lib-hoy.fullname" $ }}
+  replacePath:
+    path: /
+{{- end -}}
+
+{{- define "lib-hoy.middleware-removepath" -}}
+{{ $name := required "'name' must be provided" .name }}
+{{ $subsystem := required "'name' must be set in Values.subsystem" $.Values.subsystem.name }}
+{{- include "lib-hoy.util.merge" (
+    list
+        .
+        (printf "%s.%s-middleware-removepath.merge" $subsystem $name)
+        "lib-hoy.middleware-removepath.tpl"
+    ) -}}
+{{- end -}}

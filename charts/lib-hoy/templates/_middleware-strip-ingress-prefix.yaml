@@ -1,0 +1,23 @@
+{{- define "lib-hoy.middleware-strip-ingressroute-prefix.tpl" -}}
+{{ $name := required "'name' must be provided" .name }}
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ $name }}-strip-ingressroute-prefix
+spec:
+  serviceAccountName: {{ $name }}
+  stripPrefix:
+    prefixes:
+      - /{{ $name }}/
+{{- end -}}
+
+{{- define "lib-hoy.middleware-strip-ingressroute-prefix" -}}
+{{ $name := required "'name' must be provided" .name }}
+{{ $subsystem := required "'name' must be set in Values.subsystem" $.Values.subsystem.name }}
+{{- include "lib-hoy.util.merge" (
+    list
+        .
+        (printf "%s.%s-middleware-strip-ingressroute-prefix.merge" $subsystem $name)
+        "lib-hoy.middleware-strip-ingressroute-prefix.tpl"
+    ) -}}
+{{- end -}}

@@ -1,0 +1,58 @@
+{{- define "lib-hoy.ingressroute.tpl" -}}
+{{ $name := required "'name' must be provided" .name }}
+{{ $apply := required "'apply' must be provided" .apply}}
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ $name }}
+spec:
+  {{- if $apply.entryPoints }}
+  entryPoints:
+    {{- range $entryPoint := $apply.entryPoints }}
+    - {{ $entryPoint }}
+    {{- end }}
+  {{- end }}
+  {{- if $apply.routes }}
+  routes:
+  {{- if $apply.routes.http }}
+    {{- range $route := $apply.routes.http }}
+    - match: Host(`{{ include "lib-hoy.fullname" $ }}.{{ $.Values.platform.default.domain }}`) && PathPrefix(`/{{ $name }}/{{ $route.pathSuffix }}`) && Method({{- join "," $route.methods }})
+      kind: Rule
+      services:
+        - kind: Service
+          name: {{ $route.serviceName }}
+          namespace: {{ include "lib-hoy.fullname" $ }}
+          scheme: http
+          port: http-port
+      middlewares: 
+        - name: {{ $name }}-strip-ingressroute-prefix
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  tls:
+    secretName: iona-app-dev
+{{- end -}}
+
+{{- define "lib-hoy.ingressroute" -}}
+{{ $name := required "'name' must be provided" .name }}
+{{ $subsystem := required "'name' must be set in Values.subsystem" $.Values.subsystem.name }}
+{{- include "lib-hoy.util.merge" (
+    list
+        (merge
+            (dict
+              "name" $name
+                "apply" (merge
+                  ((include (printf "%s.%s-ingressroute.apply" $subsystem $name)  .) | fromYaml)
+                  ((include "lib-hoy.ingressroute.apply-defaults" (merge (dict "name" $name) .)) | fromYaml)
+                  )
+             ) .)
+        (printf "%s.%s-ingressroute.merge" $subsystem $name)
+        "lib-hoy.ingressroute.tpl"
+    ) -}}
+{{- end -}}
+
+{{- define "lib-hoy.ingressroute.apply-defaults" -}}
+{{ $name := required "'name' must be provided" .name }}
+entryPoints:
+  - websecure
+{{- end -}}

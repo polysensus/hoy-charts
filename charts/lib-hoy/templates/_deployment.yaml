@@ -4,61 +4,57 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "lib-hoy.fullname" $ }}-{{ $name }}
+  name: {{ $name }}
   labels:
-    app.polysensus.io/project-name: {{ $.Values.global.project.name }}
-    {{- if $.Values.global.project.instance }}
+    app.polysensus.io/project-name: {{ $.Values.project.name }}
+    {{- if $.Values.project.instance }}
     app.polysensus.io/project-instance: {{ include "instance_var" (merge ( dict "scope" $ "var" "name" ) .) }}
     {{- end }}
-    app.polysensus.io/subsystem-name: {{ $.Values.global.subsystem.name }}
-    {{- if $.Values.global.subsystem.instance }}
+    app.polysensus.io/subsystem-name: {{ $.Values.subsystem.name }}
+    {{- if $.Values.subsystem.instance }}
     app.polysensus.io/subsystem-instance: {{ include "subsystem_instance_var" (merge ( dict "scope" $ "var" "name" ) .) }}
     {{- end }}
-    app.kubernetes.io/name: {{ include "lib-hoy.name" . }}-{{ $name }}
+    app.kubernetes.io/name: {{ $name }}
     helm.sh/chart: {{ include "lib-hoy.chart" . }}
     app.kubernetes.io/instance: {{ $.Release.Name }}
     app.kubernetes.io/managed-by: {{ $.Release.Service }}
 spec:
   selector:
     matchLabels:
-      app.polysensus.io/project-name: {{ $.Values.global.project.name }}
-      {{- if $.Values.global.project.instance }}
+      app.polysensus.io/project-name: {{ $.Values.project.name }}
+      {{- if $.Values.project.instance }}
       app.polysensus.io/project-instance: {{ include "instance_var" (merge ( dict "scope" $ "var" "name" ) .) }}
       {{- end }}
-      app.polysensus.io/subsystem-name: {{ $.Values.global.subsystem.name }}
-      {{- if $.Values.global.subsystem.instance }}
+      app.polysensus.io/subsystem-name: {{ $.Values.subsystem.name }}
+      {{- if $.Values.subsystem.instance }}
       app.polysensus.io/subsystem-instance: {{ include "subsystem_instance_var" (merge ( dict "scope" $ "var" "name" ) .) }}
       {{- end }}
       app.kubernetes.io/name: {{ include "lib-hoy.name" . }}-{{ $name }}
       app.kubernetes.io/instance: {{ $.Release.Name }}
-      app: {{ include "lib-hoy.fullname" . }}-{{ $name }}
+      app: {{ $name }}
   strategy:
-    type: {{ $.Values.global.rolloutStrategy }}
+    type: {{ $.Values.project.default.rolloutStrategy }}
   template:
     metadata:
       labels:
-        app.polysensus.io/project-name: {{ $.Values.global.project.name }}
-        {{- if $.Values.global.project.instance }}
+        app.polysensus.io/project-name: {{ $.Values.project.name }}
+        {{- if $.Values.project.instance }}
         app.polysensus.io/project-instance: {{ include "instance_var" (merge ( dict "scope" $ "var" "name" ) .) }}
         {{- end }}
-        app.polysensus.io/subsystem-name: {{ $.Values.global.subsystem.name }}
-        {{- if $.Values.global.subsystem.instance }}
+        app.polysensus.io/subsystem-name: {{ $.Values.subsystem.name }}
+        {{- if $.Values.subsystem.instance }}
         app.polysensus.io/subsystem-instance: {{ include "subsystem_instance_var" (merge ( dict "scope" $ "var" "name" ) .) }}
         {{- end }}
         app.kubernetes.io/name: {{ include "lib-hoy.name" . }}-{{ $name }}
         app.kubernetes.io/instance: {{ $.Release.Name }}
-        app: {{ include "lib-hoy.fullname" . }}-{{ $name }}
+        app: {{ $name }}
 
     spec:
-      serviceAccountName: {{ include "lib-hoy.fullname" . }}-{{ $name }}
+      serviceAccountName: {{ $name }}
       containers:
         - name: main
-          {{- if $.Values.global.skaffoldDeploy }}
-          image: {{ ( index $.Values.global.image $name ) }}
-          {{- else }}
-          image: "{{ $.Values.global.platform.imageConfig.repository }}/{{ $name }}:{{ $.Values.global.platform.imageConfig.tags.default }}"
-          {{- end }}
-          imagePullPolicy: {{ $.Values.global.platform.imageConfig.pullPolicy.polysensus }}
+          image: {{ ( index $.Values $name ).image }}
+          imagePullPolicy: {{ $.Values.platform.imageConfig.pullPolicy.default }}
           env:
             - name: CONTAINER_NAME
               value: main
@@ -82,11 +78,17 @@ spec:
               value: {{ $v | quote }}
           {{- end }}
           {{- end }}
+          {{- if $apply.yamlenv }}
+          {{- range $k, $v := $apply.yamlenv }}
+            - name: {{ $k }}
+              {{ toYaml $v | nindent 14 }}
+          {{- end }}
+          {{- end }}
 
           {{- if $apply.queues }}
             {{- range $queueName, $queue := $apply.queues }}
             {{- /* If the queue is NOT listed in disabledQueues, include its env var */}}
-            {{- if not (has $queueName $.Values.global.features.disabledQueues) }}
+            {{- if not (has $queueName $.Values.project.features.disabledQueues) }}
             - name: {{ upper $queueName }}_QUEUE
               value: {{ $queueName }}
             {{- end }}
@@ -186,14 +188,14 @@ spec:
         {{- range $configMapName, $_ := $apply.volumes.configMapMounts }}
         - name: {{ $configMapName }}
           configMap:
-            name: {{ include "lib-hoy.fullname" $ }}-{{ $configMapName }}
+            name: {{ $configMapName }}
         {{- end }} # range $apply.volumes.configMapMounts
         {{- end }} # $apply.volumes.configMapMounts
         {{- if $apply.volumes.configMaps -}}
         {{- range $configMapName, $_ := $apply.volumes.configMaps }}
         - name: {{ $configMapName }}
           configMap:
-            name: {{ include "lib-hoy.fullname" $ }}-{{ $name }}-{{ $configMapName }}
+            name: {{ $name }}-{{ $configMapName }}
         {{- end }} # range $apply.volumes.configMaps
         {{- end }} # $apply.volumes.configMaps
         {{- end }} # $apply.volumes
@@ -208,7 +210,7 @@ spec:
 
 {{- define "lib-hoy.deployment" -}}
 {{ $name := required "'name' must be provided" .name }}
-{{ $subsystem := required "'name' must be set in Values.global.subsystem" $.Values.global.subsystem.name }}
+{{ $subsystem := required "'name' must be set in Values.subsystem" $.Values.subsystem.name }}
 {{- include "lib-hoy.util.merge" (
     list
         (merge
@@ -236,6 +238,9 @@ env:
   PORT: "8000"
 
 ports:
+  http-port:
+    containerPort: 8000
+
 readinessProbe:
   enabled: false               # by having an explicit enable from caller allows us to set useful defaults here
   failureThreshold: 3

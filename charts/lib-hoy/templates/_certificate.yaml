@@ -1,0 +1,27 @@
+{{- define "lib-hoy.certificate.tpl" -}}
+{{ $name := required "'name' must be provided" .name }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: "{{ $name | replace "." "-" }}-{{ ($.Values.platform.default.domain | replace "." "-" )}}"
+spec:
+  commonName: "{{ $name }}.{{ $.Values.platform.default.domain }}"
+  secretName: {{ $name }}-{{ ($.Values.platform.default.domain | replace "." "-" )}}
+  dnsNames:
+    - "{{ $name }}.{{ $.Values.platform.default.domain }}"
+    - "*.{{ $name }}.{{ $.Values.platform.default.domain }}"
+  issuerRef:
+    name: letsencrypt-prod-primary-dns
+    kind: ClusterIssuer
+{{- end -}}
+
+{{- define "lib-hoy.certificate" -}}
+{{ $name := required "'name' must be provided" .name }}
+{{ $subsystem := required "'name' must be set in Values.subsystem" $.Values.subsystem.name }}
+{{- include "lib-hoy.util.merge" (
+    list
+        .
+        (printf "%s.%s-certificate.merge" $subsystem $name)
+        "lib-hoy.certificate.tpl"
+    ) -}}
+{{- end -}}
