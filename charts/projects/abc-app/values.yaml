@@ -1,9 +1,26 @@
 global:
-  project:
-    name: abc
-  subsystem:
-    name: abc
-    instance: dev
-  subsystem_dev:
-    name: dev-abcy
+project:
+  name: abc
+  default:
+    serviceType: ClusterIP
+    # Using Recreate as the default would be a dev focused and light weight, but will
+    # cause down time.
+    rolloutStrategy: Recreate
+    # rolloutStrategy: Rolling
+    rollingUpdate:
+      # Note: I expect the absoloute of 1 to work even for deployments with a
+      # single instance
+      maxUnavailable: 1
 
+subsystem:
+  name: abc
+  instance: dev
+  default:
+    httpPort: 80
+    grpcPort: 8082
+    metricsPort: 8083
+subsystem_dev:
+  name: dev-abcy
+
+ex1servicev1:
+  image: eu.gcr.io/hoy-dev-1/ex1servicev1:latest
